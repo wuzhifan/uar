@@ -40,7 +40,7 @@ class PlotDisplay(object):
         kcr = []
         kcdn = []
         for rd in range(self.round_count):
-            c, r, dn = kc.rehead_and_collect_once(rd)
+            c, r, dn = kc.collect_once()
             kcc.append(c)
             kcr.append(r)
             kcdn.append(dn)

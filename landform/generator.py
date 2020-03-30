@@ -10,7 +10,7 @@ class LandForm(object):
                  width=0,
                  use_old=True,
                  obstacle_rate=0.01,
-                 city_rate=0.01):
+                 city_rate=0.008):
         # if use_old == True:
         #     db_cli = redis.redis_client()
 

@@ -1,13 +1,26 @@
-import numpy as np
-import matplotlib.pyplot as plt
+import math
 
-x = np.arange(0, 21)
+h = 5
+Lb = 50
+P0 = 0.001
+Pr = 0.0002
+Eda = 5
+Ti = 100
+Tf = 230
 
-plt.plot(x, x * 2)
 
-# True 显示网格
-# linestyle 设置线显示的类型(一共四种)
-# color 设置网格的颜色
-# linewidth 设置网格的宽度
-plt.grid(True, linestyle="-.", color="r", linewidth="3")
-plt.show()
+def absorption_coefficient(f=9):
+    return 0.11 * f * f / (1 + f * f) + 44 * f * f / (
+        4100 + f * f) + 0.000275 * f * f + 0.003
+
+
+a = math.pow(10, 0.1 * absorption_coefficient())
+
+print(a)
+
+
+def f(dis):
+    print(Ti * P0 * math.pow(dis, 1.5) * math.pow(a, dis))
+
+
+print(math.pow(13.801, 1.5), math.pow(a, 13.801), f(13.801))

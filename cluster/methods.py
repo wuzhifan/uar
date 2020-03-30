@@ -8,8 +8,8 @@ from uar.landform import generator
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 
-NODE_INIT_ENERGY = 4500
-NODE_DEAD_ENERGY_THRESHOLD = 10
+NODE_INIT_ENERGY = 2000
+NODE_DEAD_ENERGY_THRESHOLD = 0
 
 
 def distance(p1, p2):
@@ -22,6 +22,23 @@ def leach_threshould(r, p):
 
 def sigmoid_threshould(dr, er):
     return 1 / (1 + math.exp(-(0.01 * dr + 7 * er - 2.6)))
+
+
+def absorption_coefficient(f=10):
+    return 0.11 * f * f / (1 + f * f) + 44 * f * f / (
+        4100 + f * f) + 0.000275 * f * f + 0.003
+
+
+h = 30 * 0.1
+Lb = 50
+P0 = 0.001
+Pr = 0.0002
+Eda = 5
+Ti = 100
+Tf = 400
+a = math.pow(10, 0.1 * absorption_coefficient())
+
+MAX_BROADCAST_DISTANCE = 100 * 0.1
 
 
 class Cluster(object):
@@ -39,31 +56,70 @@ class Cluster(object):
 
     def collect_once(self):
         consumption = 0
+        max_distance = 0
+
+        def sub_nodes_add_consum(i, v):
+            nonlocal consumption
+            self.nodes_energy[i] -= v
+            consumption += v
+
         for i in self.nodes_energy:
             if self.nodes_energy[i] <= NODE_DEAD_ENERGY_THRESHOLD:
                 continue
-            if i == self.head:
-                c = self.head_to_auv_consumption()
-                self.nodes_energy[i] -= c
-                consumption += c
-            else:
-                d = distance(self.nodes_coord[i], self.nodes_coord[self.head])
-                c = self.node_send_consumption(d)
-                self.nodes_energy[i] -= c
-                consumption += c
-                c = self.head_receive_consumption(d)
-                self.nodes_energy[self.head] -= c
-                consumption += c
+            if i != self.head:
+                d = distance(self.nodes_coord[i],
+                             self.nodes_coord[self.head]) * 0.1
+                if d > MAX_BROADCAST_DISTANCE:
+                    max_distance = MAX_BROADCAST_DISTANCE
+                    continue
+                if d > max_distance:
+                    max_distance = d
+
+                # print("node d {0} send cons {1} receive cons {2}".format(
+                #     d, self.formal_node_send_consumption(d),
+                #     self.formal_node_receive_broadcast_consumption()))
+                sub_nodes_add_consum(i, self.formal_node_send_consumption(d))
+                sub_nodes_add_consum(
+                    i, self.formal_node_receive_broadcast_consumption())
+        # print(
+        #     "head max d {0} to auv cons {1} fusion cons {2} rec cons {3} br cons {4}"
+        #     .format(max_distance, self.formal_head_to_auv_consumption(),
+        #             self.formal_fusion_consumption(),
+        #             self.formal_head_receive_consumption(),
+        #             self.formal_head_broadcast_consumption(max_distance)))
+
+        if self.nodes_energy[self.head] > NODE_DEAD_ENERGY_THRESHOLD:
+            sub_nodes_add_consum(self.head,
+                                 self.formal_head_to_auv_consumption())
+            sub_nodes_add_consum(self.head, self.formal_fusion_consumption())
+            sub_nodes_add_consum(self.head,
+                                 self.formal_head_receive_consumption())
+            sub_nodes_add_consum(
+                self.head,
+                self.formal_head_broadcast_consumption(max_distance))
+
         return consumption
 
-    def head_to_auv_consumption(self):
-        return 20
+    def formal_head_broadcast_consumption(self, distance):
+        return Lb * P0 * math.pow(distance, 1.5) * math.pow(a, distance)
 
-    def head_receive_consumption(self, distance):
-        return distance * 0.5
+    def formal_fusion_consumption(self):
+        return Eda * Tf * 0.005
 
-    def node_send_consumption(self, distance):
-        return distance
+    def formal_head_receive_consumption(self):
+        alive_node_count = len(self.nodes_energy) - self.count_dead_node()
+        if alive_node_count <= 1:
+            return 0
+        return (alive_node_count - 1) * Ti * Pr
+
+    def formal_head_to_auv_consumption(self):
+        return Tf * P0 * math.pow(h, 1.5) * math.pow(a, h)
+
+    def formal_node_send_consumption(self, distance):
+        return Ti * P0 * math.pow(distance, 1.5) * math.pow(a, distance)
+
+    def formal_node_receive_broadcast_consumption(self):
+        return Lb * Pr
 
     def count_dead_node(self):
         s = 0
@@ -107,7 +163,7 @@ class KMeansCluster(object):
             label = self.kmeans.labels_[i]
             self.clusters[label].add_node(i)
         for c in self.clusters:
-            self.find_head_nearest_center(c)
+            self.find_head_center_nearest(c)
 
     def find_head_stochastic(self, cluster, r):
         if cluster.is_all_dead():
@@ -120,21 +176,17 @@ class KMeansCluster(object):
                 if i in cluster.exclude_head_candidates:
                     continue
                 d = distance(cluster.nodes_coord[i], cluster.center_coord)
-                print("find_head_stochastic node coord {0} center_coord {1}".
-                      format(cluster.nodes_coord[i], cluster.center_coord))
+                if d == 0:
+                    d = 1
                 t = sigmoid_threshould(
                     1 / d, cluster.nodes_energy[i] / NODE_INIT_ENERGY)
                 rdn = random.random()
-                # print(
-                #     "find head d {0} largest distance {1} energy {2} random {3} t {4}"
-                #     .format(d, cluster.get_largest_distance(),
-                #             cluster.nodes_energy[i], rdn, t))
                 if rdn <= t:
                     cluster.head = i
                     cluster.exclude_head_candidates.add(i)
                     return
 
-    def find_head_nearest_center(self, cluster):
+    def find_head_center_nearest(self, cluster):
         if cluster.is_all_dead():
             return
         min_dis = -1
@@ -155,7 +207,7 @@ class KMeansCluster(object):
             slope = self.kmeans.inertia_ - lki
             if max_slope == 0:
                 max_slope = slope
-            if slope / max_slope < 0.01:
+            if slope / max_slope < 0.008:
                 break
             lki = self.kmeans.inertia_
             i += 1
@@ -179,7 +231,7 @@ class KMeansCluster(object):
             dead_node_count += c.count_dead_node()
 
             if c.nodes_energy[c.head] <= NODE_DEAD_ENERGY_THRESHOLD:
-                self.find_head_nearest_center(c)
+                self.find_head_center_nearest(c)
         return consumption, remain, dead_node_count
 
     def rehead_and_collect_once(self, r):
@@ -222,15 +274,12 @@ class LeachCluster(object):
 
                 t = leach_threshould(r, self.p)
                 rdn = random.random()
-                print("round {0} node {1} random {2} t {3}".format(
-                    r, i, rdn, t))
                 if rdn <= t:
                     nc = Cluster(self.nodes_coord, head=i)
                     nc.add_node(i, self.nodes_energy[i])
                     self.clusters.append(nc)
                     self.current_heads.add(i)
                     self.exclude_head_candidates.add(i)
-                    #print("add cluster {0} head {1}".format(nc, i))
 
         for i in range(len(self.nodes_coord)):
             if i in self.current_heads:
@@ -257,9 +306,6 @@ class LeachCluster(object):
             dead_node_count += c.count_dead_node()
 
             self.nodes_energy.update(c.nodes_energy)
-            # print(
-            #     "round {0} cluster nodes {1} cluster nodes energy {2}".format(
-            #         r, c.nodes, c.nodes_energy))
         self.alive_node_count = len(self.nodes_coord) - dead_node_count
         if dead_node_count == len(self.nodes_coord):
             self.all_dead = True

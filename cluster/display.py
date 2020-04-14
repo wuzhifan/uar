@@ -39,7 +39,7 @@ class PlotDisplay(object):
         self.show()
 
     def use_kmeans(self):
-        kc = methods.KMeansCluster(self.land)
+        kc = methods.KMeansCluster(self.land, 0.4)
         kcc = []
         kcr = []
         kcdn = []

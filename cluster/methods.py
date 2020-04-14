@@ -147,8 +147,9 @@ class Cluster(object):
 
 
 class KMeansCluster(object):
-    def __init__(self, land):
+    def __init__(self, land, slop_threshold=0.008):
         self.nodes_coord = land.cities
+        self.slop_threshold = slop_threshold
         self.kmeans = None
         self.clusters = []
         self.init_clusters(self.find_k_elbow())
@@ -207,7 +208,7 @@ class KMeansCluster(object):
             slope = self.kmeans.inertia_ - lki
             if max_slope == 0:
                 max_slope = slope
-            if slope / max_slope < 0.008:
+            if slope / max_slope < self.slop_threshold:
                 break
             lki = self.kmeans.inertia_
             i += 1
@@ -313,6 +314,6 @@ class LeachCluster(object):
 
 
 if __name__ == "__main__":
-    l = generator.LandForm(200, 200)
+    l = generator.LandForm(40, 40)
     c = KMeansCluster(l)
     c.show()

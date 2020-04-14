@@ -91,12 +91,10 @@ def main():
                 cost_angle_matrix[i][j] = random.randint(1, 100)
         cost_matrix.append(row)
     plot_round_bests({
-        "ant-density":
-        run(cost_matrix, cost_angle_matrix, 2),
+        "ACO": run(cost_matrix, cost_angle_matrix, 2),
         # "f-ant-density":
         # run(cost_matrix, cost_angle_matrix, 3),
-        "bellman-ant-density":
-        run(cost_matrix, cost_angle_matrix, 4),
+        "R-ACO": run(cost_matrix, cost_angle_matrix, 4),
     })
 
 

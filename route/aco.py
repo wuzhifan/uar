@@ -96,8 +96,9 @@ class _Ant(object):
         self.allowed = [i for i in range(graph.rank)
                         ]  # nodes which are allowed for the next selection
         self.gama = 0.06
-        self.eta = []
         self.angle_eta_weight = 0.012
+        self.angle_q = 13
+        self.eta = []
         for i in range(graph.rank):
             row = []
             for j in range(graph.rank):
@@ -178,7 +179,7 @@ class _Ant(object):
                 i = self.tabu[_ - 1]
                 j = self.tabu[_]
                 cr = self.colony.Q / self.graph.matrix[i][
-                    j] + 13 / self.graph.angle_matrix[i][j]
+                    j] + self.angle_q / self.graph.angle_matrix[i][j]
                 self.pheromone_delta[i][j] = self.gama * last + cr
                 last = self.pheromone_delta[i][j]
         elif self.colony.update_strategy == 4:
@@ -200,5 +201,5 @@ class _Ant(object):
                         last += p * self.graph.pheromone[ii][i]
 
                 cr = self.colony.Q / self.graph.matrix[i][
-                    j] + 13 / self.graph.angle_matrix[i][j]
+                    j] + self.angle_q / self.graph.angle_matrix[i][j]
                 self.pheromone_delta[i][j] = self.gama * last + cr
